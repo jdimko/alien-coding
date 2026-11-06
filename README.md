@@ -55,6 +55,8 @@ The rest adapts to what your project has. Mutation tests, Stop hooks that hold a
 
 This is a heavy pipeline, built for changes where being wrong costs more than the tokens. Two large real features each took 6 to 10 active hours, about half of it running tests and builds, and used a lot of tokens. For a small change, use Claude Code directly or try `--fast`.
 
+Each run closes with what it cost in dollars, by agent and model, from the session's own token counts and Anthropic's API list prices. On a Claude subscription, that's what the tokens would cost through the API, not what you paid. The prices live in `skills/alien-coding/run-cost.js` and need updating when Anthropic changes them. A `/clear` during a run starts a new session, so the figure then covers only the part after it.
+
 ## Safety
 
 `readonly-guard.js` is a deny-list that catches mistakes by the read-only agents. It is not a sandbox. The agents' own rules are the real boundary, so review what a run does as you would any other agent's work.

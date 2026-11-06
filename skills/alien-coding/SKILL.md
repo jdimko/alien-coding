@@ -453,6 +453,7 @@ they are; never wait for a report.
 
 **Header:**
 - the task text and flag, verbatim
+- the run's start time, in ISO format and UTC
 - base commit (`git rev-parse HEAD`)
 - feature branch name (isolated) or current branch (in-place)
 - run mode
@@ -713,6 +714,9 @@ yourself, and check that no process the run started is still running. Then tell 
   remove, plus leftovers of other slugs found in step 0, each with why it remains and the exact
   command that removes it
 - the feature branch name (isolated) or the uncommitted files (in-place)
+- what the run cost: run `node ~/.claude/skills/alien-coding/run-cost.js --since <start time>` with
+  the start time from plan.md's header, and paste its table and total whole, in dollars. If it
+  fails, say so and give its error; never estimate the figure
 
 Don't push.
 
