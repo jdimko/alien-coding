@@ -5,7 +5,7 @@ A [Claude Code](https://claude.com/claude-code) skill that carries out one codin
 ## How a run goes
 
 ```mermaid
-flowchart TD
+flowchart LR
     start(["/alien-coding task"]) --> preflight
 
     subgraph planning ["Plan"]
