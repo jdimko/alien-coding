@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Reports what a session's tokens cost at Anthropic's API list prices, by agent and model.
+// Reports what a session's tokens cost at Anthropic's API list prices, by agent and model, and
+// where its time went: model thinking, model writing, build and tests, other.
 // Usage: node run-cost.js [--session <id>] [--since <ISO time>] [--until <ISO time>] [--prices-url <url>]
 // The session defaults to CLAUDE_CODE_SESSION_ID. Subagent transcripts are included.
 // Prices are fetched on each run. If the page is unreachable or no longer parses, the last list that
@@ -42,6 +43,17 @@ const BUILT_IN_PRICES = {
   },
   'claude-haiku-4-5': { input: 1, write5m: 1.25, write1h: 2, read: 0.1, output: 5 },
 };
+const BUILD = 1;
+const THINKING = 2;
+const WRITING = 3;
+const OTHER = 4;
+const SHELLS = new Set(['Bash', 'PowerShell']);
+// Waiting on a person or a subagent is not work; a subagent's own transcript carries its work.
+const NOT_WORK = new Set(['AskUserQuestion', 'Agent', 'Task', 'SendMessage']);
+const BUILD_OR_TEST =
+  /\b(build|tests?|prove|verify|mutations?|lint|compile|tsc|pytest|jest|vitest|karma|playwright|cargo|gradle|mvn|make|rspec|phpunit)\b/i;
+const READ_ONLY_COMMAND = /^\s*(git|grep|rg|cat|ls|sed|awk|find|head|tail|wc|echo|printf|cut|sort|diff)\b/;
+const BACKGROUND_CHECK = /\b(wave|verification|proof|checks?|tests?|build)\b/i;
 const WEB_SEARCH_USD = 0.01;
 const US_ONLY_MULTIPLIER = 1.1;
 
@@ -242,6 +254,108 @@ function transcripts(main) {
   return files;
 }
 
+function isBuildOrTest(input) {
+  const segments = String(input.command || '').split(/;|&&|\|\||\n/);
+  if (segments.some((s) => !READ_ONLY_COMMAND.test(s) && BUILD_OR_TEST.test(s))) return true;
+  return Boolean(input.run_in_background) && BACKGROUND_CHECK.test(input.description || '');
+}
+
+function category(name, input) {
+  return SHELLS.has(name) && isBuildOrTest(input) ? BUILD : OTHER;
+}
+
+function eventRows(file, since, until) {
+  const rows = [];
+  for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+    if (!line.includes('"timestamp"')) continue;
+    let row;
+    try {
+      row = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (row.type !== 'assistant' && row.type !== 'user') continue;
+    const at = Date.parse(row.timestamp);
+    if (at >= since && at <= until) rows.push({ row, at });
+  }
+  return rows;
+}
+
+function spans(rows) {
+  const found = [];
+  const tools = new Map();
+  let previous = null;
+  for (const { row, at } of rows) {
+    const content = (row.message && row.message.content) || [];
+    const blocks = Array.isArray(content) ? content : [];
+    if (row.type === 'assistant') {
+      if (previous !== null) {
+        found.push([previous, at, WRITING]);
+        found.push([Math.max(previous, at - (row.thinkingDurationMs || 0)), at, THINKING]);
+      }
+      for (const block of blocks) {
+        if (block.type === 'tool_use') tools.set(block.id, { at, name: block.name, input: block.input || {} });
+      }
+    } else {
+      for (const block of blocks) {
+        const tool = block.type === 'tool_result' && tools.get(block.tool_use_id);
+        if (!tool || NOT_WORK.has(tool.name) || tool.input.run_in_background) continue;
+        found.push([tool.at, at, category(tool.name, tool.input)]);
+      }
+      const text = typeof content === 'string' ? content : blocks.map((b) => b.text || '').join(' ');
+      const notified = tools.get((/<tool-use-id>(\w+)/.exec(text) || [])[1]);
+      if (notified && notified.input.run_in_background) {
+        found.push([notified.at, at, category(notified.name, notified.input)]);
+      }
+    }
+    previous = at;
+  }
+  return found;
+}
+
+// Agents overlap, so each second counts once, under the highest-priority work happening in it.
+function timeSpent(files, since, until) {
+  const all = files.map(({ file }) => eventRows(file, since, until));
+  const times = all.flat().map((r) => r.at);
+  if (!times.length) return null;
+  const start = times.reduce((a, b) => Math.min(a, b));
+  const end = times.reduce((a, b) => Math.max(a, b));
+  const seconds = new Uint8Array(Math.ceil((end - start) / 1000) + 1);
+  for (const rows of all) {
+    for (const [from, to, kind] of spans(rows)) {
+      const last = Math.floor((to - start) / 1000);
+      for (let i = Math.floor((from - start) / 1000); i < last; i += 1) {
+        if (!seconds[i] || kind < seconds[i]) seconds[i] = kind;
+      }
+    }
+  }
+  const counts = { [BUILD]: 0, [THINKING]: 0, [WRITING]: 0, [OTHER]: 0 };
+  for (const kind of seconds) if (kind) counts[kind] += 1;
+  return { counts, elapsed: seconds.length };
+}
+
+function printTime(spent) {
+  const clock = (s) => {
+    const minutes = Math.round(s / 60);
+    return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`;
+  };
+  const active = Object.values(spent.counts).reduce((a, b) => a + b, 0);
+  const share = (s) => `${active ? Math.round((100 * s) / active) : 0}%`;
+  console.log('\n| Where the time went | Time | Share |\n|---|---|---|');
+  for (const [kind, label] of [
+    [THINKING, 'Model thinking'],
+    [WRITING, 'Model writing'],
+    [BUILD, 'Build and tests'],
+    [OTHER, 'Other'],
+  ]) {
+    console.log(`| ${label} | ${clock(spent.counts[kind])} | ${share(spent.counts[kind])} |`);
+  }
+  console.log(
+    `\nActive ${clock(active)} of ${clock(spent.elapsed)} elapsed. The rest was waiting for you or idle.` +
+      ' Work that overlapped counts once, build and tests first.',
+  );
+}
+
 async function main() {
   const session = option('--session') || process.env.CLAUDE_CODE_SESSION_ID;
   if (!session) {
@@ -306,6 +420,8 @@ async function main() {
   console.log(`\nTotal: ${money(total)} ${note}.`);
   console.log('On a Claude subscription this is what the tokens would cost through the API, not what you paid.');
   if (unpriced.size) console.log(`Not counted, no price known: ${[...unpriced].join(', ')}.`);
+  const spent = timeSpent(transcripts(file), since, until);
+  if (spent) printTime(spent);
 }
 
 main().catch((error) => {

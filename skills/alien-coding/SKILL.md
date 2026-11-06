@@ -714,9 +714,11 @@ yourself, and check that no process the run started is still running. Then tell 
   remove, plus leftovers of other slugs found in step 0, each with why it remains and the exact
   command that removes it
 - the feature branch name (isolated) or the uncommitted files (in-place)
-- what the run cost: run `node ~/.claude/skills/alien-coding/run-cost.js --since <start time>` with
-  the start time from plan.md's header, and paste its table and total whole, in dollars. If it
-  fails, say so and give its error; never estimate the figure
+- what the run cost and where its time went: run
+  `node ~/.claude/skills/alien-coding/run-cost.js --since <start time>` with the start time from
+  plan.md's header, and paste its output whole: the cost in dollars, and the time split into model
+  thinking, model writing, build and tests, and other. If it fails, say so and give its error; never
+  estimate the figures
 
 Don't push.
 
