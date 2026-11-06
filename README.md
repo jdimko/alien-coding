@@ -4,6 +4,49 @@ A [Claude Code](https://claude.com/claude-code) skill that carries out one codin
 
 ## How a run goes
 
+```mermaid
+flowchart LR
+    start(["/alien-coding task"]) --> preflight
+
+    subgraph planning ["Plan"]
+        preflight["Preflight<br/>read the project's rules, set up git if needed"]
+        plan["Orchestrator explores, asks you,<br/>and writes plan.md"]
+        critic["Plan critic"]
+        independent["Independent plan review"]
+        preflight --> plan --> critic
+        critic -- "REVISE, up to 2 rounds" --> plan
+        critic -- "APPROVE" --> independent
+    end
+
+    independent --> gate{"You approve<br/>the plan?"}
+    gate -- "Revise" --> plan
+    gate -- "Stop" --> stopped(["Run ends, nothing built"])
+    gate -- "Approve" --> builder
+
+    subgraph wave ["Each wave, up to 3 tasks"]
+        builder["Builder, test first<br/>light, standard or careful"]
+        reviewer["Task reviewer<br/>never sees the builder's reasoning"]
+        check["Wave check<br/>re-runs every targeted check"]
+        builder --> reviewer
+        reviewer -- "FIX, up to 2 rounds" --> builder
+        reviewer -- "PASS" --> check
+        check -- "red" --> builder
+    end
+
+    builder -- "BLOCKED, re-plan once" --> critic
+    check -- "more waves" --> builder
+    check -- "last wave" --> proof
+
+    subgraph proving ["Prove"]
+        proof["Full verification<br/>the project's own proof"]
+        integration["Integration review<br/>reads the whole change"]
+        proof --> integration
+    end
+
+    integration -- "FIX, up to 2 rounds" --> builder
+    integration -- "PASS" --> close(["Close report<br/>you commit and push"])
+```
+
 1. **Plan.** The main session explores the project, asks you what only you can decide, and writes `plan.md`.
 2. **Critique.** A critic and an independent reviewer on a different model try to break the plan.
 3. **Approve.** Nothing is built until you say so.
@@ -11,6 +54,8 @@ A [Claude Code](https://claude.com/claude-code) skill that carries out one codin
 5. **Review.** A separate reviewer checks each task without seeing the builder's reasoning.
 6. **Check.** After each wave of tasks, the orchestrator re-runs every targeted check.
 7. **Prove.** The project's full verification runs, then an independent integration review reads the whole change.
+
+This graph shows the full path. `--fast` skips the critic, the waves and the integration review.
 
 Everything a run writes goes to `.claude/alien-coding/<slug>/` in your project.
 
