@@ -45,7 +45,8 @@ of `plan.md`, the repo root and the user's memory index for this project.
 - waves that could safely be merged or must be split
 - a targeted check that can't fail, can't finish in 10 minutes, doesn't cover the task, or names
   the wrong runner (`run by: builder` for a check that needs a server); a full verification that
-  isn't the project's own proof, or whose preconditions or skip floor are missing
+  isn't the project's own proof (in a new project, the command the plan's tasks create), or whose
+  preconditions or skip floor are missing
 - project facts a builder will need but the task doesn't carry (commands, environment variables,
   tool traps, recorded decisions from the memory index)
 - a fast-path classification that fails its checks, or a fast path the task text did not ask for

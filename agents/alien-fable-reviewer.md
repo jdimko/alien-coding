@@ -51,7 +51,7 @@ Your brief gives `plan.md`, the repo root and the memory index. Attack the plan 
 - steps that break existing behaviour, missing edge cases, wrong dependencies between tasks
 - commands, flags and paths that won't work as written (check `--help` when a flag matters)
 - a targeted check or the full verification that can't pass, can't fail, or isn't the project's
-  own proof
+  own proof (in a new project, the command the plan's tasks create)
 - anything the project's CLAUDE.md, rules or memory say that the plan misses
 
 Line 1 of your reply and of the review file: `VERDICT: REVISE` if you have any required finding,

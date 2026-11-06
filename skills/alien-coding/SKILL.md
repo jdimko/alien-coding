@@ -66,6 +66,7 @@ user's answer starts it. Before anything else, in this order:
   - in-place mode: never commit, stage, stash or switch branches
   - isolated mode: only builders' commits on their task branches (or, on the fast path, on the
     feature branch) and your merges into the feature branch
+  - the one exception: the empty first commit New projects describes
   The close names the project's own finish steps (commit, push, deploy, required reviews) as
   left to the user.
 - Otherwise the project's rules win: its CLAUDE.md, `.claude/rules/`, the user's memory for this
@@ -274,6 +275,31 @@ anything: in a shared checkout, another session's edits can count.
   sessions, or has a hook that refuses commits until a full proof has run. If the rules are unclear,
   ask in step 1's batch.
 
+## New projects
+
+A run needs a repository with at least one commit, because snapshots, briefs and reviews all start
+from HEAD. Step 0 sets one up:
+- **Not a git repository, folder empty:** run `git init`, make the first commit, and say so.
+- **Not a git repository, folder not empty:** ask with AskUserQuestion whether to initialise git
+  here or stop. The folder may not be meant as a project. Existing files are left untracked.
+- **A repository with no commits:** make the first commit, unless files are staged. Then stop and
+  ask the user to commit them, because that commit would carry them.
+
+The first commit is empty: `git commit --allow-empty -m "Initial commit"`. If it fails because git
+has no user name or email, stop and give the user the two `git config --global` commands. Never
+invent an identity.
+
+When the project has no code, no build and no CLAUDE.md yet:
+- The run mode is in-place, without asking.
+- Step 1 asks for whatever the task leaves open: the language, the framework and how it should be
+  tested.
+- There is no project proof to read, so the plan names the full verification its tasks will create,
+  normally the build plus the whole test suite. The first task sets up the project and makes that
+  command run.
+- The last task writes the project's CLAUDE.md, naming that command, the project's conventions and
+  its sensitive areas, so later runs have them.
+- With no CLAUDE.md the fast path's sensitive-areas check fails, so the run takes the full path.
+
 ## Snapshots
 
 - After approval, write `run-start/`:
@@ -470,8 +496,8 @@ are all in earlier waves. Within one wave:
    model your system prompt states; if it isn't Opus 5.5 (any context size), stop and tell the
    user to switch the session's model. Read `CLAUDE_EFFORT` through Bash and state it; if it isn't `xhigh`, warn
    (never stop).
-2. Find the repo root (`git rev-parse --show-toplevel`). If this isn't a git repository, stop and
-   say so.
+2. Find the repo root (`git rev-parse --show-toplevel`). If this isn't a git repository, or it has
+   no commits, follow New projects first.
 3. Read the project's CLAUDE.md files, its `.claude/rules/`, the user's memory index for this
    project (the memory directory your system prompt names) and the memory files it points to that
    bear on how work is run, tested, seen or committed, and the hooks in `.claude/settings.json` and
