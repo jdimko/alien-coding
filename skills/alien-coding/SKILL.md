@@ -354,7 +354,7 @@ not significant. The project's UI paths come from its CLAUDE.md layout; when uns
 
 When a plan holds one:
 - In step 1, load `ui-ux-pro-max:ui-ux-pro-max` and write a `UI spec` section into plan.md before
-  splitting tasks. If that skill isn't installed, say so in the spec, write it from the project's own
+  splitting tasks. If that skill can't be loaded, say so in the spec, write it from the project's own
   rules and skip the `Checklist pass`. Use its search tool in read-only ways: `--domain ux` (and `icons`, `chart`,
   `typography`, `color` as needed) for states, accessibility, forms, navigation and layout, and
   `--stack <the project's stack>` for implementation rules. Use `--design-system` only when the task
@@ -406,6 +406,21 @@ When a plan holds one:
   project has no way at all, the review says the UI wasn't seen.
 - The critic and the code reviewer may load `ui-ux-pro-max:ui-ux-pro-max` to check the spec and
   the build against it. Either way, the UI spec in plan.md is the standard they judge against.
+
+## The UI plugin
+
+[`ui-ux-pro-max`](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) is a third-party plugin
+that strengthens UI specs. It is part of this skill, and the first run installs it:
+1. Do nothing more if `claude plugin list` shows `ui-ux-pro-max`, or if the file
+   `~/.claude/alien-coding-skip-ui-plugin` exists. That file is how a user opts out.
+2. Otherwise tell the user you are installing it, then run these two commands:
+   - `claude plugin marketplace add nextlevelbuilder/ui-ux-pro-max-skill#v2.15.0`
+   - `claude plugin install ui-ux-pro-max@ui-ux-pro-max-skill`
+3. If the `claude` command isn't found or a command fails, say so and carry on without the plugin.
+
+A plugin installed during a session loads only in a new one. If this run holds a significant UI
+change, step 1 asks whether to stop so the user can restart and run the task again, or to go on
+without the plugin.
 
 ## Project-required reviews
 
@@ -511,15 +526,16 @@ are all in earlier waves. Within one wave:
    - project-required reviews
 4. Check that all six agents are listed by the Agent tool. If one is missing, stop and tell the
    user (new agent files may need a restart to appear).
-5. Look for leftovers of earlier runs: `git worktree list`, branches matching `alien/*`, folders
+5. Install the UI plugin, as The UI plugin says.
+6. Look for leftovers of earlier runs: `git worktree list`, branches matching `alien/*`, folders
    under `.claude/alien-coding/` and `<repo parent>/<repo name>.alien/`. If any exist for this
    task's slug, ask in step 1's batch: keep them and run alongside, clean up the merged ones, or
    stop. Never touch leftovers of a different slug, except a run marker naming this session's id;
    list them in the close report.
-6. Delete any run marker (any slug) that names this session's id.
-7. Create the run folder, add `.claude/alien-coding/` to `.git/info/exclude` if needed, and write
+7. Delete any run marker (any slug) that names this session's id.
+8. Create the run folder, add `.claude/alien-coding/` to `.git/info/exclude` if needed, and write
    plan.md's header as far as it is known (the task text first).
-8. Last, if a run marker is in use, write it.
+9. Last, if a run marker is in use, write it.
 
 ### 1. Plan (Agent 1)
 

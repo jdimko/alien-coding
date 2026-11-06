@@ -25,7 +25,11 @@ git clone https://github.com/jdimko/alien-coding.git
 node alien-coding/install.js
 ```
 
-The installer copies the skill and agents into `~/.claude`, overwriting any earlier copy, and installs the third-party [`ui-ux-pro-max`](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) plugin at its latest version. Use `--no-plugin` to skip the plugin. Restart Claude Code afterwards so it finds the agents.
+The installer copies the skill and agents into `~/.claude`, overwriting any earlier copy. Restart Claude Code afterwards so it finds the agents.
+
+The first `/alien-coding` run installs the [`ui-ux-pro-max`](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) plugin, which strengthens UI specs. It comes from another author and its code has not been fully reviewed here. It is pinned to tag `v2.15.0`, adds seven skills and no hooks, agents or MCP servers, and loads from your next session.
+
+To opt out, create an empty file at `~/.claude/alien-coding-skip-ui-plugin` before your first run. The skill then takes its design rules from your project.
 
 ## Use
 
@@ -43,7 +47,7 @@ You can start in an empty folder. The skill runs `git init`, makes an empty firs
 - Claude Code with access to Opus 5.5 and Fable 5.1. The model of each agent is set in its frontmatter, so change it there if yours differ.
 - Node.js, for the installer and `readonly-guard.js`.
 - Git, with your user name and email set. In an existing project, a `CLAUDE.md` that names its full verification command and its sensitive areas. The skill is not tied to any language or framework: it takes its rules and its proof from your project.
-- Optional, for UI work: the `ui-ux-pro-max` plugin, which the installer adds, and the `visualize` tool in the Claude desktop app. Without the plugin, the UI spec comes from your project's own rules. Without `visualize`, mockups fall back to ASCII.
+- Optional, for UI work: the `ui-ux-pro-max` plugin, installed on the first run, and the `visualize` tool in the Claude desktop app. Without `visualize`, mockups fall back to ASCII.
 
 The rest adapts to what your project has. Mutation tests, Stop hooks that hold a turn open, and required reviews of its own are all optional, and the skill handles them only if it finds them.
 
