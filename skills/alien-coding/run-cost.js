@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Reports what a session's tokens cost at Anthropic's API list prices, by agent and model.
-// Usage: node run-cost.js [--session <id>] [--since <ISO time>] [--until <ISO time>]
+// Usage: node run-cost.js [--session <id>] [--since <ISO time>] [--until <ISO time>] [--prices-url <url>]
 // The session defaults to CLAUDE_CODE_SESSION_ID. Subagent transcripts are included.
+// Prices are fetched on each run. If the page is unreachable or no longer parses, the last list that
+// loaded is used, kept in <claude dir>/alien-coding-prices.json, then the list built in below.
 
 'use strict';
 
@@ -9,9 +11,13 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-// USD per million tokens, from https://platform.claude.com/docs/en/about-claude/pricing
-const PRICES_CHECKED = '2026-11-06';
-const PRICES = {
+const PRICES_URL = 'https://platform.claude.com/docs/en/about-claude/pricing.md';
+const FETCH_TIMEOUT_MS = 8000;
+const FIELDS = ['input', 'write5m', 'write1h', 'read', 'output'];
+
+// USD per million tokens; fast is the fast-mode multiplier, long the tier above a prompt length.
+const BUILT_IN_DATE = '2026-11-06';
+const BUILT_IN_PRICES = {
   'claude-fable-5-1': { input: 10, write5m: 12.5, write1h: 20, read: 0.25, output: 50 },
   'claude-mythos-5-1': { input: 10, write5m: 12.5, write1h: 20, read: 0.25, output: 50 },
   'claude-fable-5': { input: 10, write5m: 12.5, write1h: 20, read: 1, output: 50 },
@@ -26,17 +32,130 @@ const PRICES = {
   'claude-sonnet-5': { input: 2, write5m: 2.5, write1h: 4, read: 0.2, output: 10 },
   'claude-sonnet-4-6': { input: 3, write5m: 3.75, write1h: 6, read: 0.3, output: 15 },
   'claude-sonnet-4-5': { input: 3, write5m: 3.75, write1h: 6, read: 0.3, output: 15 },
-  'claude-haiku-5-5': { input: 0.1, write5m: 0.125, write1h: 0.2, read: 0.01, output: 0.5 },
+  'claude-haiku-5-5': {
+    input: 0.1,
+    write5m: 0.125,
+    write1h: 0.2,
+    read: 0.01,
+    output: 0.5,
+    long: { above: 100000, input: 0.5, write5m: 0.625, write1h: 1, read: 0.05, output: 2.5 },
+  },
   'claude-haiku-4-5': { input: 1, write5m: 1.25, write1h: 2, read: 0.1, output: 5 },
 };
-const HAIKU_5_5_LONG = { input: 0.5, write5m: 0.625, write1h: 1, read: 0.05, output: 2.5 };
-const HAIKU_5_5_LONG_ABOVE = 100000;
 const WEB_SEARCH_USD = 0.01;
 const US_ONLY_MULTIPLIER = 1.1;
 
 function option(name) {
   const at = process.argv.indexOf(name);
   return at === -1 ? undefined : process.argv[at + 1];
+}
+
+function tableRows(lines) {
+  return lines
+    .filter((line) => line.startsWith('|') && !/^\|\s*:?-/.test(line))
+    .map((line) => line.split('|').slice(1, -1).map((cell) => cell.trim()));
+}
+
+function usd(cell) {
+  const match = /\$([\d.]+)/.exec(cell);
+  return match ? Number(match[1]) : NaN;
+}
+
+function modelId(name) {
+  return name.replace(/\(.*$/, '').trim().toLowerCase().replace(/[ .]/g, '-');
+}
+
+function validTier(p) {
+  return (
+    FIELDS.every((field) => Number.isFinite(p[field]) && p[field] > 0) &&
+    p.read < p.input &&
+    p.input < p.write5m &&
+    p.write5m < p.write1h &&
+    p.input < p.output
+  );
+}
+
+// Throws on any shape it doesn't recognise, so a changed page can never price a run.
+function parsePrices(markdown) {
+  const lines = markdown.split(/\r?\n/);
+  const start = lines.findIndex((l) => /^\|\s*Model\s*\|\s*Base input tokens/i.test(l));
+  if (start === -1) throw new Error('the price table was not found');
+  const header = lines[start].toLowerCase();
+  const order = ['base input', '5m cache', '1h cache', 'cache hits', 'output'].map((s) => header.indexOf(s));
+  if (order.some((at, i) => at === -1 || (i > 0 && at < order[i - 1]))) {
+    throw new Error('the price table has different columns');
+  }
+  let end = start;
+  while (lines[end + 1] && lines[end + 1].startsWith('|')) end += 1;
+
+  const models = {};
+  for (const cells of tableRows(lines.slice(start + 1, end + 1))) {
+    if (cells.length !== 6) throw new Error('a price row has a different shape');
+    const tier = Object.fromEntries(FIELDS.map((field, i) => [field, usd(cells[i + 1])]));
+    if (!validTier(tier)) throw new Error(`the prices for ${cells[0]} look wrong`);
+    const id = modelId(cells[0]);
+    const over = /over ([\d,]+) tokens/.exec(cells[0]);
+    if (over) {
+      models[id] = { ...models[id], long: { above: Number(over[1].replace(/,/g, '')), ...tier } };
+    } else {
+      models[id] = { ...tier, ...(models[id] && { long: models[id].long }) };
+    }
+  }
+  const families = ['claude-opus-', 'claude-sonnet-', 'claude-haiku-'];
+  if (!families.every((family) => Object.keys(models).some((id) => id.startsWith(family)))) {
+    throw new Error('a model family is missing');
+  }
+
+  const fastAt = lines.findIndex((l) => /^#+\s*Fast mode pricing/i.test(l));
+  if (fastAt === -1) throw new Error('the fast mode section was not found');
+  let fastEnd = fastAt + 1;
+  while (fastEnd < lines.length && !/^#/.test(lines[fastEnd])) fastEnd += 1;
+  let fastRows = 0;
+  for (const cells of tableRows(lines.slice(fastAt, fastEnd))) {
+    if (!cells[0].startsWith('Claude')) continue;
+    for (const name of cells[0].split('/')) {
+      const id = modelId(name);
+      if (!models[id] || !(usd(cells[1]) > 0)) throw new Error(`the fast price for ${name.trim()} looks wrong`);
+      models[id].fast = usd(cells[1]) / models[id].input;
+      fastRows += 1;
+    }
+  }
+  if (!fastRows) throw new Error('the fast mode table was not found');
+  return models;
+}
+
+function readSavedPrices(file) {
+  try {
+    const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (saved.date && saved.models && Object.values(saved.models).every(validTier)) return saved;
+  } catch {
+    // No saved list, or an unreadable one, leaves the built-in list.
+  }
+  return { date: BUILT_IN_DATE, models: BUILT_IN_PRICES };
+}
+
+async function loadPrices(root, url) {
+  const file = path.join(root, 'alien-coding-prices.json');
+  const last = readSavedPrices(file);
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    if (!response.ok) throw new Error(`the page answered ${response.status}`);
+    // A model the page has dropped keeps its last price, so older transcripts stay priced.
+    const models = { ...last.models, ...parsePrices(await response.text()) };
+    const date = new Date().toISOString().slice(0, 10);
+    try {
+      fs.writeFileSync(file, JSON.stringify({ date, models }, null, 2));
+    } catch {
+      // Prices that can't be saved still price this run.
+    }
+    return { models, note: `at API list prices fetched today (${date})` };
+  } catch (error) {
+    const reason = error.cause ? error.cause.message || error.cause.code : error.message;
+    return {
+      models: last.models,
+      note: `at the last loaded API list prices, from ${last.date}. The price page could not be used: ${reason}`,
+    };
+  }
 }
 
 function modelKey(model) {
@@ -58,23 +177,23 @@ function tokens(usage) {
   };
 }
 
-function cost(key, usage) {
-  let price = PRICES[key];
-  if (!price) return null;
+function cost(prices, key, usage) {
+  const model = prices[key];
+  if (!model) return null;
   const t = tokens(usage);
   const prompt = t.input + t.write5m + t.write1h + t.read;
-  if (key === 'claude-haiku-5-5' && prompt > HAIKU_5_5_LONG_ABOVE) price = HAIKU_5_5_LONG;
-  let usd =
+  const price = model.long && prompt > model.long.above ? model.long : model;
+  let total =
     (t.input * price.input +
       t.write5m * price.write5m +
       t.write1h * price.write1h +
       t.read * price.read +
       t.output * price.output) /
     1e6;
-  if (usage.speed === 'fast' && price.fast) usd *= price.fast;
-  if (usage.inference_geo === 'us') usd *= US_ONLY_MULTIPLIER;
+  if (usage.speed === 'fast' && model.fast) total *= model.fast;
+  if (usage.inference_geo === 'us') total *= US_ONLY_MULTIPLIER;
   const searches = (usage.server_tool_use && usage.server_tool_use.web_search_requests) || 0;
-  return usd + searches * WEB_SEARCH_USD;
+  return total + searches * WEB_SEARCH_USD;
 }
 
 // A response is logged once per content block, so keep one record per request: the last has the final counts.
@@ -123,7 +242,7 @@ function transcripts(main) {
   return files;
 }
 
-function main() {
+async function main() {
   const session = option('--session') || process.env.CLAUDE_CODE_SESSION_ID;
   if (!session) {
     console.error('No session: pass --session <id> or set CLAUDE_CODE_SESSION_ID.');
@@ -137,6 +256,7 @@ function main() {
   }
   const since = option('--since') ? Date.parse(option('--since')) : -Infinity;
   const until = option('--until') ? Date.parse(option('--until')) : Infinity;
+  const { models: prices, note } = await loadPrices(root, option('--prices-url') || PRICES_URL);
 
   const rows = new Map();
   const unpriced = new Set();
@@ -149,17 +269,17 @@ function main() {
         rows.get(id) ||
         { agent, model: key, requests: 0, input: 0, write: 0, read: 0, output: 0, usd: 0, priced: true };
       const t = tokens(message.usage);
-      const usd = cost(key, message.usage);
+      const dollars = cost(prices, key, message.usage);
       row.requests += 1;
       row.input += t.input;
       row.write += t.write5m + t.write1h;
       row.read += t.read;
       row.output += t.output;
-      if (usd === null) {
+      if (dollars === null) {
         row.priced = false;
         unpriced.add(key);
       } else {
-        row.usd += usd;
+        row.usd += dollars;
       }
       rows.set(id, row);
     }
@@ -183,9 +303,12 @@ function main() {
   }
   const total = ordered.reduce((sum, r) => sum + r.usd, 0);
   console.log(table.map((cells) => `| ${cells.join(' | ')} |`).join('\n').replace('\n', `\n|${'---|'.repeat(8)}\n`));
-  console.log(`\nTotal: ${money(total)} at API list prices checked ${PRICES_CHECKED}.`);
+  console.log(`\nTotal: ${money(total)} ${note}.`);
   console.log('On a Claude subscription this is what the tokens would cost through the API, not what you paid.');
   if (unpriced.size) console.log(`Not counted, no price known: ${[...unpriced].join(', ')}.`);
 }
 
-main();
+main().catch((error) => {
+  console.error(error.message);
+  process.exit(1);
+});
