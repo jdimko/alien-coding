@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" width="960" height="560" role="img" aria-label="The alien-coding pipeline: plan, approve, build and review each wave, then prove the whole change">
+  <style>
+    .page { fill: #ffffff; }
+    .band { fill: #f4f6fb; stroke: #d5dbe8; }
+    .band-title { fill: #5b6578; font: 700 12px system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: .06em; }
+    .box { fill: #ffffff; stroke: #4f6bd8; stroke-width: 1.5; }
+    .gate { fill: #fff6df; stroke: #c9962b; stroke-width: 1.5; }
+    .end { fill: #e6f5ec; stroke: #2f9e60; stroke-width: 1.5; }
+    .stop { fill: #fdeaea; stroke: #cf5050; stroke-width: 1.5; }
+    .title { fill: #1c2433; font: 600 14px system-ui, -apple-system, "Segoe UI", sans-serif; text-anchor: middle; }
+    .note { fill: #5b6578; font: 12px system-ui, -apple-system, "Segoe UI", sans-serif; text-anchor: middle; }
+    .edge { fill: none; stroke: #5b6578; stroke-width: 1.5; }
+    .back { fill: none; stroke: #b5651d; stroke-width: 1.5; stroke-dasharray: 5 4; }
+    .head { fill: #5b6578; }
+    .back-head { fill: #b5651d; }
+    .label { fill: #5b6578; font: 12px system-ui, -apple-system, "Segoe UI", sans-serif; text-anchor: middle; paint-order: stroke; stroke: #ffffff; stroke-width: 5px; }
+    .in-band { stroke: #f4f6fb; }
+    .back-label { fill: #9a5415; }
+    @media (prefers-color-scheme: dark) {
+      .page { fill: #0d1117; }
+      .band { fill: #161b22; stroke: #30363d; }
+      .band-title, .note { fill: #9aa4b2; }
+      .box { fill: #0d1117; stroke: #7d97f0; }
+      .gate { fill: #33290f; stroke: #d9a93d; }
+      .end { fill: #10301f; stroke: #49b57b; }
+      .stop { fill: #3a1a1a; stroke: #e07070; }
+      .title { fill: #e6edf3; }
+      .edge { stroke: #9aa4b2; }
+      .back { stroke: #e0995a; }
+      .head { fill: #9aa4b2; }
+      .back-head { fill: #e0995a; }
+      .label { fill: #9aa4b2; stroke: #0d1117; }
+      .in-band { stroke: #161b22; }
+      .back-label { fill: #e0995a; }
+    }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0 0 10 5 0 10z"/></marker>
+    <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="back-head" d="M0 0 10 5 0 10z"/></marker>
+  </defs>
+
+  <rect class="page" width="960" height="560"/>
+  <rect class="band" x="20" y="14" width="920" height="156" rx="10"/>
+  <rect class="band" x="20" y="200" width="920" height="170" rx="10"/>
+  <rect class="band" x="20" y="400" width="920" height="140" rx="10"/>
+  <text class="band-title" x="36" y="38">PLAN</text>
+  <text class="band-title" x="36" y="224">EACH WAVE, UP TO 3 TASKS</text>
+  <text class="band-title" x="36" y="424">PROVE</text>
+
+  <!-- forward flow -->
+  <path class="edge" marker-end="url(#a)" d="M180 102H210"/>
+  <path class="edge" marker-end="url(#a)" d="M350 102H380"/>
+  <path class="edge" marker-end="url(#a)" d="M520 102H550"/>
+  <path class="edge" marker-end="url(#a)" d="M690 102H720"/>
+  <path class="edge" marker-end="url(#a)" d="M860 102H880"/>
+  <path class="edge" marker-end="url(#a)" d="M790 144V262"/>
+  <path class="edge" marker-end="url(#a)" d="M710 280H580"/>
+  <path class="edge" marker-end="url(#a)" d="M420 298H280"/>
+  <path class="edge" marker-end="url(#a)" d="M170 334V440"/>
+  <path class="edge" marker-end="url(#a)" d="M280 475H380"/>
+  <path class="edge" marker-end="url(#a)" d="M560 475H680"/>
+
+  <!-- loops back -->
+  <path class="back" marker-end="url(#b)" d="M450 70V52H300V70"/>
+  <path class="back" marker-end="url(#b)" d="M790 60V32H250V70"/>
+  <path class="back" marker-end="url(#b)" d="M740 262V185H450V134"/>
+  <path class="back" marker-end="url(#b)" d="M580 316H710"/>
+  <path class="back" marker-end="url(#b)" d="M230 334V352H770V334"/>
+  <path class="back" marker-end="url(#b)" d="M500 440V385H830V334"/>
+
+  <!-- plan -->
+  <rect class="box" x="40" y="70" width="140" height="64" rx="8"/>
+  <text class="title" x="110" y="96">Preflight</text>
+  <text class="note" x="110" y="115">reads the project's rules</text>
+  <rect class="box" x="210" y="70" width="140" height="64" rx="8"/>
+  <text class="title" x="280" y="96">Plan</text>
+  <text class="note" x="280" y="115">asks you, writes plan.md</text>
+  <rect class="box" x="380" y="70" width="140" height="64" rx="8"/>
+  <text class="title" x="450" y="96">Plan critic</text>
+  <text class="note" x="450" y="115">attacks the plan</text>
+  <rect class="box" x="550" y="70" width="140" height="64" rx="8"/>
+  <text class="title" x="620" y="96">Independent review</text>
+  <text class="note" x="620" y="115">on a different model</text>
+  <path class="gate" d="M790 60 860 102 790 144 720 102z"/>
+  <text class="title" x="790" y="98">You</text>
+  <text class="title" x="790" y="115">approve?</text>
+  <rect class="stop" x="880" y="86" width="50" height="32" rx="16"/>
+  <text class="title" x="905" y="107">Stop</text>
+
+  <!-- wave -->
+  <rect class="box" x="710" y="262" width="160" height="72" rx="8"/>
+  <text class="title" x="790" y="292">Builder</text>
+  <text class="note" x="790" y="311">light, standard or careful</text>
+  <rect class="box" x="420" y="262" width="160" height="72" rx="8"/>
+  <text class="title" x="500" y="292">Task reviewer</text>
+  <text class="note" x="500" y="311">never sees the reasoning</text>
+  <rect class="box" x="120" y="262" width="160" height="72" rx="8"/>
+  <text class="title" x="200" y="292">Wave check</text>
+  <text class="note" x="200" y="311">re-runs targeted checks</text>
+
+  <!-- prove -->
+  <rect class="box" x="120" y="440" width="160" height="72" rx="8"/>
+  <text class="title" x="200" y="470">Full verification</text>
+  <text class="note" x="200" y="489">the project's own proof</text>
+  <rect class="box" x="380" y="440" width="180" height="72" rx="8"/>
+  <text class="title" x="470" y="470">Integration review</text>
+  <text class="note" x="470" y="489">reads the whole change</text>
+  <rect class="end" x="680" y="440" width="220" height="72" rx="36"/>
+  <text class="title" x="790" y="470">Close report</text>
+  <text class="note" x="790" y="489">you commit and push</text>
+
+  <!-- labels -->
+  <text class="label in-band back-label" x="375" y="56">REVISE, up to 2 rounds</text>
+  <text class="label in-band back-label" x="520" y="36">Revise</text>
+  <text class="label back-label" x="590" y="189">BLOCKED, re-plan once</text>
+  <text class="label in-band" x="818" y="196">Approve</text>
+  <text class="label in-band" x="350" y="288">PASS</text>
+  <text class="label in-band back-label" x="645" y="312">FIX, 2 rounds</text>
+  <text class="label in-band back-label" x="500" y="356">red, or more waves</text>
+  <text class="label" x="134" y="389">last wave</text>
+  <text class="label back-label" x="665" y="389">FIX, up to 2 rounds</text>
+  <text class="label in-band" x="620" y="471">PASS</text>
+</svg>
